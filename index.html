@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="theme-light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+    <title>Central de Comandos Multi-Vendor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #f8fafc; --bg-secondary: #ffffff; --bg-accent: #f9fafb; --bg-header: #f3f4f6;
+            --text-primary: #1f2937; --text-secondary: #6b7280; --text-header: #1f2937;
+            --border-color: #e5e7eb; --pre-bg: #1e293b; --pre-text: #e2e8f0;
+            --btn-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --btn-shadow-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .theme-dark {
+            --bg-primary: #0f172a; --bg-secondary: #1e293b; --bg-accent: #28344a; --bg-header: #1e293b;
+            --text-primary: #e2e8f0; --text-secondary: #94a3b8; --text-header: #cbd5e1;
+            --border-color: #334155; --pre-bg: #334155; --pre-text: #e2e8f0;
+        }
+        .theme-matrix {
+            --bg-primary: #000000; --bg-secondary: #0D0208; --bg-accent: #0a0a0a; --bg-header: #0D0208;
+            --text-primary: #00ff41; --text-secondary: #00ff41; --text-header: #00ff41;
+            --border-color: #008F11; --pre-bg: #0D0208; --pre-text: #00ff41;
+        }
+        .theme-ocean {
+            --bg-primary: #F0F8FF; --bg-secondary: #FFFFFF; --bg-accent: #E6F2FF; --bg-header: #BDE0FE;
+            --text-primary: #03045E; --text-secondary: #0077B6; --text-header: #03045E;
+            --border-color: #BDE0FE; --pre-bg: #0077B6; --pre-text: #FFFFFF;
+        }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-primary); color: var(--text-primary); transition: background-color 0.3s, color 0.3s; }
+        pre { font-family: 'Fira Code', monospace; background-color: var(--pre-bg); color: var(--pre-text); white-space: pre-wrap; word-wrap: break-word; transition: background-color 0.2s ease; padding: 0.5rem 0.75rem; border-radius: 0.375rem; font-size: 0.875rem; cursor: pointer; }
+        pre[onclick]:hover { filter: brightness(1.2); }
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        th, td { padding: 0.75rem 1rem; text-align: left; border: 1px solid var(--border-color); vertical-align: middle; word-wrap: break-word; }
+        th { font-weight: 600; position: sticky; top: 0; z-index: 10; text-align: center; background-color: var(--bg-header); color: var(--text-header); }
+        .vendor-cell { width: 18.4%; }
+        .actions-cell { width: 9%; text-align: center; }
+        .category-card { border-radius: 0.75rem; overflow: hidden; background-color: var(--bg-secondary); border: 1px solid var(--border-color); }
+        .command-row:nth-child(even) { background-color: var(--bg-accent); }
+        .command-row:hover { filter: brightness(0.95); }
+        .btn-3d { transition: all 0.15s ease-out; transform: translate(0, -2px); box-shadow: var(--btn-shadow); display: inline-flex; align-items: center; gap: 0.5rem; }
+        .btn-3d:hover { transform: translate(0, -3px); box-shadow: var(--btn-shadow-hover); }
+        .btn-3d:active { transform: translate(0, 0); }
+        .modal-backdrop { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
+        .modal-backdrop.active { opacity: 1; pointer-events: all; }
+        .modal-content { background-color: var(--bg-secondary); padding: 2rem; border-radius: 0.5rem; width: 90%; max-width: 600px; transform: scale(0.95); transition: transform 0.3s ease; }
+        .modal-backdrop.active .modal-content { transform: scale(1); }
+        #save-toast { position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%); background-color: #22c55e; color: white; padding: 1rem 2rem; border-radius: 0.5rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: bottom 0.5s ease-in-out; z-index: 2000; }
+        #save-toast.show { bottom: 20px; }
+        .admin-only { display: none; }
+    </style>
+</head>
+<body class="transition-colors duration-300">
+
+    <div id="app-container" class="container mx-auto p-4 sm:p-6 lg:p-8">
+        <header class="text-center mb-6">
+            <div class="flex justify-center items-center gap-3 mb-2">
+                <svg class="w-12 h-12 text-blue-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"></circle><ellipse cx="12" cy="12" rx="4" ry="10" stroke="currentColor" stroke-width="2"></ellipse><line x1="2" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="2"></line></svg>
+                <h1 class="text-3xl sm:text-4xl font-bold">Central de Comandos de Rede Multi-Vendor</h1>
+            </div>
+            <p class="mt-2 text-lg text-secondary">Seu guia de referência para comandos entre Alcatel-Lucent, Cisco, Datacom, Huawei e Juniper.</p>
+            <p class="mt-4 text-sm text-secondary">Criado por カルロス・エドゥアルド</p>
+        </header>
+
+        <div class="flex flex-wrap justify-center items-center gap-4 mb-6 sticky top-0 py-4 z-20" style="background-color: var(--bg-primary);">
+            <input type="text" id="searchInput" onkeyup="filterContent()" placeholder="Filtrar..." class="w-full max-w-sm p-3 border rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500" style="background-color: var(--bg-secondary); border-color: var(--border-color);">
+            
+            <div id="admin-controls" class="admin-only flex flex-wrap justify-center gap-2">
+                <button onclick="openAddCategoryModal()" class="btn-3d px-4 py-3 bg-green-600 text-white font-semibold rounded-lg"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"></path></svg>Add Categoria</button>
+                <button onclick="openAddCommandModal()" class="btn-3d px-4 py-3 bg-blue-600 text-white font-semibold rounded-lg"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z"></path><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd"></path></svg>Add Comando</button>
+                <button onclick="document.getElementById('import-input').click()" class="btn-3d px-4 py-3 bg-teal-600 text-white font-semibold rounded-lg"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg>Importar</button>
+                <input type="file" id="import-input" class="hidden" accept=".xlsx" onchange="importXLSX(event)">
+                <button onclick="exportXLSX()" class="btn-3d px-4 py-3 bg-gray-700 text-white font-semibold rounded-lg"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>Exportar</button>
+            </div>
+
+            <div class="flex items-center gap-4">
+                 <div class="flex items-center gap-2">
+                    <label for="theme-selector" class="font-semibold">Tema:</label>
+                    <select id="theme-selector" onchange="setTheme(this.value)" class="p-3 border rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500" style="background-color: var(--bg-secondary); border-color: var(--border-color);"><option value="light">Claro</option><option value="dark">Escuro</option><option value="matrix">Matrix</option><option value="ocean">Oceano</option></select>
+                </div>
+                <button id="auth-button" onclick="handleAuth()" class="btn-3d px-4 py-3 bg-gray-500 text-white font-semibold rounded-lg">Login Admin</button>
+            </div>
+        </div>
+
+        <main id="main-content" class="space-y-8">
+            <div id="loading-indicator" class="text-center py-10">
+                <p class="text-lg text-secondary">Conectando ao servidor...</p>
+            </div>
+        </main>
+    </div>
+    
+    <div id="commandModal" class="modal-backdrop">
+        <div class="modal-content"><h3 id="modalTitle" class="text-2xl font-bold mb-6"></h3><form id="commandForm" class="space-y-4"></form></div>
+    </div>
+    
+    <div id="authModal" class="modal-backdrop">
+        <div class="modal-content">
+            <h3 id="authTitle" class="text-2xl font-bold mb-4">Acesso Administrativo</h3>
+            <p id="authSubtitle" class="text-secondary mb-6 hidden"></p>
+            <form id="authForm" class="space-y-4">
+                <div><label for="emailInput" class="block font-semibold mb-1">Email</label><input type="email" id="emailInput" required class="w-full p-2 border rounded" style="background-color: var(--bg-primary); border-color: var(--border-color);"></div>
+                <div><label for="passwordInput" class="block font-semibold mb-1">Senha</label><input type="password" id="passwordInput" required class="w-full p-2 border rounded" style="background-color: var(--bg-primary); border-color: var(--border-color);"></div>
+                <div id="confirmPasswordContainer" class="hidden"><label for="confirmPasswordInput" class="block font-semibold mb-1">Confirmar Senha</label><input type="password" id="confirmPasswordInput" class="w-full p-2 border rounded" style="background-color: var(--bg-primary); border-color: var(--border-color);"></div>
+                <div id="auth-error" class="text-red-500 text-sm hidden"></div>
+                <div class="flex justify-end gap-4 pt-4">
+                    <button type="button" onclick="closeModal('authModal')" class="px-4 py-2 bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded">Cancelar</button>
+                    <button id="authSubmitBtn" type="submit" class="px-4 py-2 bg-blue-600 text-white rounded">Entrar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="save-toast">Salvo!</div>
+
+    <script type="module">
+        // Importações do Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Configuração do Firebase ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyDp1ODK83j_rlGr0yAD8e2xMHiQ15Z5nik",
+            authDomain: "comandos-de-rede-multi-vendor.firebaseapp.com",
+            projectId: "comandos-de-rede-multi-vendor",
+            storageBucket: "comandos-de-rede-multi-vendor.appspot.com",
+            messagingSenderId: "259831659815",
+            appId: "1:259831659815:web:c6ca8b5a68741371fcfd02"
+        };
+
+        // Inicializa Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // --- Variáveis Globais ---
+        let commandData = [];
+        let isAdmin = false;
+        let unsubscribeData; 
+        let isInitialized = false;
+
+        // --- Dados Iniciais ---
+        const initialDefaultData = [
+            {category: "Sistema", color: "bg-red-700", commands: [
+                {id: "sis_1", task: "Exibe a versão do software e hardware", alcatel: "show version", cisco: "show version", datacom: "show version", huawei: "display version", juniper: "show version"},
+                {id: "sis_2", task: "Exibe a configuração em execução", alcatel: "admin display-config", cisco: "show running-config", datacom: "show running-config", huawei: "display current-configuration", juniper: "show configuration"},
+                {id: "sis_3", task: "Exibe a configuração de inicialização", alcatel: "show bof", cisco: "show startup-config", datacom: "Não aplicável (modelo commit)", huawei: "display saved-configuration", juniper: "Não aplicável (modelo commit)"},
+                {id: "sis_4", task: "Exibe data e hora do sistema", alcatel: "show system time", cisco: "show clock detail", datacom: "show clock detail", huawei: "display clock", juniper: "show system uptime"},
+                {id: "sis_5", task: "Exibe histórico de comandos", alcatel: "history", cisco: "show history", datacom: "show history", huawei: "display history-command", juniper: "show cli history"},
+                {id: "sis_6", task: "Exibe usuários conectados", alcatel: "show system users", cisco: "show users", datacom: "show users", huawei: "display users", juniper: "show system users"},
+                {id: "sis_7", task: "Exibe sessões de conexão ativas", alcatel: "show system users", cisco: "show sessions", datacom: "show users", huawei: "display users", juniper: "show system users"},
+                {id: "sis_8", task: "Exibe os processos e uso da CPU", alcatel: "show system cpu", cisco: "show processes", datacom: "show system cpu", huawei: "display cpu-usage", juniper: "show system processes extensive"},
+                {id: "sis_9", task: "Exibe o uso de memória", alcatel: "show system memory-pools", cisco: "show memory", datacom: "show system memory", huawei: "display memory", juniper: "show chassis routing-engine"},
+                {id: "sis_10", task: "Exibe informações sobre o próximo reload", alcatel: "show system reboot", cisco: "show reload", datacom: "show reload", huawei: "display reboot-information", juniper: "show system reboot"},
+                {id: "sis_11", task: "Exibe o log do sistema", alcatel: "show log log-id 99", cisco: "show logging", datacom: "show log", huawei: "display logbuffer", juniper: "show log messages"},
+            ]},
+            {category: "Hardware", color: "bg-teal-600", commands: [
+                 {id: "hd_1", task: "Exibe informações do chassi e módulos", alcatel: "show chassis", cisco: "show inventory", datacom: "show inventory", huawei: "display device", juniper: "show chassis hardware"},
+                 {id: "hd_2", task: "Exibe informações ambientais (temperatura, ventoinhas)", alcatel: "show system environment", cisco: "show environment", datacom: "show environment", huawei: "display environment", juniper: "show chassis environment"},
+                 {id: "hd_3", task: "Exibe informações da fonte de alimentação", alcatel: "show system power-supply", cisco: "show power", datacom: "show power", huawei: "display power", juniper: "show chassis power"},
+                 {id: "hd_4", task: "Exibe informações de diagnóstico de hardware", alcatel: "show diagnostics", cisco: "show diagnostics", datacom: "show diagnostics", huawei: "display diagnostic-information", juniper: "show system diagnostics"},
+                 {id: "hd_5", task: "Exibe alarmes de hardware", alcatel: "show system alarms", cisco: "show facility-alarm status", datacom: "show alarms", huawei: "display alarm hardware", juniper: "show chassis alarms"},
+                 {id: "hd_6", task: "Exibe informações da memória flash", alcatel: "file dir cf3:", cisco: "show flash:", datacom: "dir", huawei: "dir", juniper: "file list"},
+            ]},
+            {category: "Interfaces", color: "bg-blue-600", commands: [
+                {id: "int_1", task: "Exibe um resumo de todas as interfaces", alcatel: "show port", cisco: "show ip interface brief", datacom: "show interfaces brief", huawei: "display interface brief", juniper: "show interfaces terse"},
+                {id: "int_2", task: "Exibe detalhes de uma interface específica", alcatel: "show port <id>", cisco: "show interfaces <nome>", datacom: "show interfaces <nome>", huawei: "display interface <nome>", juniper: "show interfaces <nome> extensive"},
+                {id: "int_3", task: "Exibe contadores e erros da interface", alcatel: "show port <id> statistics", cisco: "show interfaces counters errors", datacom: "show interfaces counters errors", huawei: "display interface | include errors", juniper: "show interfaces extensive"},
+                {id: "int_4", task: "Exibe descrição das interfaces", alcatel: "show port <id> description", cisco: "show interfaces description", datacom: "show interfaces description", huawei: "display interface description", juniper: "show interfaces descriptions"},
+                {id: "int_5", task: "Exibe o status das transceivers (óptico)", alcatel: "show port <id> detail", cisco: "show interfaces transceiver", datacom: "show interfaces transceiver", huawei: "display transceiver interface", juniper: "show interfaces diagnostics optics"},
+                {id: "int_6", task: "Limpa os contadores de uma interface", alcatel: "clear port <id> statistics", cisco: "clear counters <interface>", datacom: "clear counters <interface>", huawei: "reset counters interface <interface>", juniper: "clear interfaces statistics <interface>"},
+            ]},
+            {category: "Camada 2", color: "bg-cyan-500", commands: [
+                {id: "l2_1", task: "Exibe a tabela de endereços MAC", alcatel: "show fdb", cisco: "show mac address-table", datacom: "show mac-address-table", huawei: "display mac-address", juniper: "show ethernet-switching table"},
+                {id: "l2_2", task: "Exibe informações de VLAN", alcatel: "show vlan", cisco: "show vlan brief", datacom: "show vlan", huawei: "display vlan", juniper: "show vlans"},
+                {id: "l2_3", task: "Exibe informações do Spanning Tree", alcatel: "show stp", cisco: "show spanning-tree", datacom: "show spanning-tree", huawei: "display stp brief", juniper: "show spanning-tree bridge"},
+                {id: "l2_4", task: "Exibe informações de agregação de link (LAG)", alcatel: "show lag", cisco: "show etherchannel summary", datacom: "show lacp", huawei: "display eth-trunk", juniper: "show lacp interfaces"},
+                {id: "l2_5", task: "Exibe informações do LLDP", alcatel: "show lldp neighbor", cisco: "show lldp neighbors", datacom: "show lldp neighbors", huawei: "display lldp neighbor brief", juniper: "show lldp neighbors"},
+                {id: "l2_6", task: "Exibe a tabela ARP", alcatel: "show router arp", cisco: "show arp", datacom: "show arp", huawei: "display arp all", juniper: "show arp"},
+            ]},
+            {category: "Roteamento", color: "bg-green-600", commands: [
+                {id: "rot_1", task: "Exibe a tabela de roteamento", alcatel: "show router route-table", cisco: "show ip route", datacom: "show ip route", huawei: "display ip routing-table", juniper: "show route"},
+                {id: "rot_2", task: "Exibe a tabela de roteamento para um destino", alcatel: "show router route-table <IP>", cisco: "show ip route <IP>", datacom: "show ip route <IP>", huawei: "display ip routing-table <IP>", juniper: "show route <IP>"},
+                {id: "rot_3", task: "Exibe resumo da tabela de roteamento", alcatel: "show router route-table summary", cisco: "show ip route summary", datacom: "show ip route summary", huawei: "display ip routing-table statistics", juniper: "show route summary"},
+            ]},
+            {category: "OSPF", color: "bg-yellow-500", commands: [
+                {id: "ospf_1", task: "Exibe vizinhos OSPF", alcatel: "show router ospf neighbor", cisco: "show ip ospf neighbor", datacom: "show ip ospf neighbor", huawei: "display ospf peer", juniper: "show ospf neighbor"},
+                {id: "ospf_2", task: "Exibe banco de dados OSPF", alcatel: "show router ospf database", cisco: "show ip ospf database", datacom: "show ip ospf database", huawei: "display ospf lsdb", juniper: "show ospf database"},
+                {id: "ospf_3", task: "Exibe interfaces OSPF", alcatel: "show router ospf interface", cisco: "show ip ospf interface", datacom: "show ip ospf interface", huawei: "display ospf interface", juniper: "show ospf interface"},
+            ]},
+            {category: "BGP", color: "bg-amber-500", commands: [
+                {id: "bgp_1", task: "Exibe resumo dos vizinhos BGP", alcatel: "show router bgp summary", cisco: "show ip bgp summary", datacom: "show ip bgp summary", huawei: "display bgp peer", juniper: "show bgp summary"},
+                {id: "bgp_2", task: "Exibe detalhes de um vizinho BGP", alcatel: "show router bgp neighbor <IP>", cisco: "show ip bgp neighbors <IP>", datacom: "show ip bgp neighbor <IP>", huawei: "display bgp peer <IP> verbose", juniper: "show bgp neighbor <IP>"},
+                {id: "bgp_3", task: "Exibe rotas recebidas de um vizinho", alcatel: "show router bgp routes neighbor <IP>", cisco: "show ip bgp neighbors <IP> received-routes", datacom: "show ip bgp neighbor <IP> received-routes", huawei: "display bgp routing-table peer <IP> received-routes", juniper: "show route receive-protocol bgp <IP>"},
+                {id: "bgp_4", task: "Exibe rotas anunciadas para um vizinho", alcatel: "show router bgp routes neighbor <IP> advertised", cisco: "show ip bgp neighbors <IP> advertised-routes", datacom: "show ip bgp neighbor <IP> advertised-routes", huawei: "display bgp routing-table peer <IP> advertised-routes", juniper: "show route advertising-protocol bgp <IP>"},
+            ]},
+            {category: "BFD", color: "bg-orange-500", commands: [
+                {id: "bfd_1", task: "Exibe sessões BFD", alcatel: "show router bfd session", cisco: "show bfd neighbors", datacom: "show bfd session", huawei: "display bfd session all", juniper: "show bfd session"},
+            ]},
+            {category: "IPV6", color: "bg-indigo-500", commands: [
+                {id: "ipv6_1", task: "Exibe a tabela de roteamento IPv6", alcatel: "show router ipv6 route-table", cisco: "show ipv6 route", datacom: "show ipv6 route", huawei: "display ipv6 routing-table", juniper: "show route table inet6.0"},
+                {id: "ipv6_2", task: "Exibe vizinhos IPv6 (ND)", alcatel: "show router ipv6 neighbor", cisco: "show ipv6 neighbors", datacom: "show ipv6 neighbors", huawei: "display ipv6 neighbors", juniper: "show ipv6 neighbors"},
+            ]},
+            {category: "MPLS", color: "bg-purple-600", commands: [
+                {id: "mpls_1", task: "Exibe tabela de encaminhamento de labels (LFIB)", alcatel: "show router mpls lfib", cisco: "show mpls forwarding-table", datacom: "show mpls forwarding-table", huawei: "display mpls lsp", juniper: "show route table mpls.0"},
+                {id: "mpls_2", task: "Exibe vizinhos LDP", alcatel: "show router ldp peer", cisco: "show mpls ldp neighbor", datacom: "show mpls ldp neighbor", huawei: "display mpls ldp peer", juniper: "show ldp neighbor"},
+            ]},
+            {category: "L2VPN", color: "bg-pink-500", commands: [
+                {id: "l2vpn_1", task: "Exibe serviço VPLS", alcatel: "show service service-using vpls", cisco: "show mpls l2transport vc", datacom: "show mpls l2-vpn", huawei: "display vsi", juniper: "show vpls connections"},
+                {id: "l2vpn_2", task: "Exibe informações de VFI (VPLS)", alcatel: "show service id <id> fdb detail", cisco: "show vfi", datacom: "show vfi", huawei: "display vsi", juniper: "show vpls connections"},
+            ]},
+            {category: "VRF", color: "bg-red-500", commands: [
+                {id: "vrf_1", task: "Exibe informações de VRF", alcatel: "show service vprn", cisco: "show vrf", datacom: "show vrf", huawei: "display ip vpn-instance", juniper: "show routing-instances"},
+                {id: "vrf_2", task: "Exibe detalhes de uma VRF", alcatel: "show service id <id> base", cisco: "show vrf detail", datacom: "show vrf detail", huawei: "display ip vpn-instance verbose", juniper: "show routing-instances <name> detail"},
+            ]},
+            {category: "QoS", color: "bg-sky-500", commands: [
+                {id: "qos_1", task: "Exibe mapas de política (QoS)", alcatel: "show qos sap-ingress/egress <id>", cisco: "show policy-map", datacom: "show policy-map", huawei: "display traffic-policy applied-record", juniper: "show class-of-service"},
+                {id: "qos_2", task: "Exibe QoS aplicado a uma interface", alcatel: "show qos interface", cisco: "show policy-map interface", datacom: "show policy-map interface", huawei: "display qos policy interface", juniper: "show interfaces queue"},
+            ]},
+            {category: "Segurança", color: "bg-orange-700", commands: [
+                {id: "seg_1", task: "Exibe listas de controle de acesso IP", alcatel: "show router filter ip", cisco: "show ip access-lists", datacom: "show access-lists", huawei: "display acl all", juniper: "show firewall"},
+                {id: "seg_2", task: "Exibe o status do servidor SSH", alcatel: "show ssh", cisco: "show ssh", datacom: "show ssh", huawei: "display ssh server status", juniper: "show system connections | match ssh"},
+                {id: "seg_3", task: "Exibe o status dos servidores TACACS+", alcatel: "show system security tacacs+", cisco: "show tacacs", datacom: "show tacacs", huawei: "display tacacs-server", juniper: "show system tacacs-server"},
+            ]},
+            {category: "Redundância", color: "bg-violet-600", commands: [
+                {id: "red_1", task: "Exibe status de redundância", alcatel: "show redundancy", cisco: "show redundancy", datacom: "show redundancy", huawei: "display hrp state", juniper: "show chassis routing-engine"},
+            ]},
+            {category: "Troubleshooting", color: "bg-gray-500", commands: [
+                {id: "ts_1", task: "Testa a conectividade com um host (Ping)", alcatel: "ping <IP>", cisco: "ping <IP>", datacom: "ping <IP>", huawei: "ping <IP>", juniper: "ping <IP>"},
+            ]}
+        ];
+
+        // --- Funções de Autenticação e UI ---
+        
+        onAuthStateChanged(auth, async (user) => {
+            try {
+                const configRef = doc(db, "config", "init");
+                const docSnap = await getDoc(configRef);
+                isInitialized = docSnap.exists();
+
+                await updateUIForRole(user);
+                listenToData();
+            } catch (error) {
+                console.error("Falha ao verificar a inicialização do Firebase:", error);
+                document.getElementById('loading-indicator').textContent = "Erro de conexão com o servidor. Tente recarregar a página.";
+            }
+        });
+
+        function setupAuthModal() {
+            const authTitle = document.getElementById('authTitle');
+            const authSubtitle = document.getElementById('authSubtitle');
+            const authSubmitBtn = document.getElementById('authSubmitBtn');
+            const confirmPasswordContainer = document.getElementById('confirmPasswordContainer');
+            const authError = document.getElementById('auth-error');
+
+            authError.classList.add('hidden');
+
+            if (isInitialized) {
+                authTitle.textContent = 'Acesso Administrativo';
+                authSubtitle.classList.add('hidden');
+                confirmPasswordContainer.classList.add('hidden');
+                authSubmitBtn.textContent = 'Entrar';
+            } else {
+                authTitle.textContent = 'Criar Conta de Administrador';
+                authSubtitle.textContent = 'Como é a primeira vez, é necessário criar a conta de SUPER ADMIN!';
+                authSubtitle.classList.remove('hidden');
+                confirmPasswordContainer.classList.remove('hidden');
+                authSubmitBtn.textContent = 'Criar e Entrar';
+            }
+        }
+
+        async function updateUIForRole(user) {
+            const adminControls = document.getElementById('admin-controls');
+            const authButton = document.getElementById('auth-button');
+            
+            if (user && isInitialized) {
+                const configRef = doc(db, "config", "init");
+                const docSnap = await getDoc(configRef);
+                isAdmin = docSnap.exists() && docSnap.data().adminUid === user.uid;
+            } else {
+                isAdmin = false;
+            }
+
+            if (isAdmin) {
+                adminControls.style.display = 'flex';
+                authButton.textContent = 'Logout';
+            } else {
+                adminControls.style.display = 'none';
+                authButton.textContent = 'Login Admin';
+            }
+        }
+
+        window.handleAuth = () => {
+            if (isAdmin) {
+                signOut(auth).catch(error => console.error("Erro no logout:", error));
+            } else {
+                setupAuthModal();
+                openModal('authModal');
+            }
+        };
+
+        const authForm = document.getElementById('authForm');
+        authForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = authForm.emailInput.value;
+            const password = authForm.passwordInput.value;
+            const authError = document.getElementById('auth-error');
+            authError.classList.add('hidden');
+
+            try {
+                if (isInitialized) {
+                    await signInWithEmailAndPassword(auth, email, password);
+                    closeModal('authModal');
+                } else {
+                    const confirmPassword = authForm.confirmPasswordInput.value;
+                    if (password !== confirmPassword) {
+                        authError.textContent = "As senhas não coincidem.";
+                        authError.classList.remove('hidden');
+                        return;
+                    }
+                    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                    const user = userCredential.user;
+                    
+                    const configRef = doc(db, "config", "init");
+                    await setDoc(configRef, { adminUid: user.uid, initialized: true });
+                    
+                    commandData = initialDefaultData;
+                    await saveData(true);
+                    isInitialized = true;
+                    closeModal('authModal');
+                }
+            } catch (error) {
+                console.error("Erro de autenticação:", error.message);
+            }
+        });
+
+        // --- Funções de Dados (Firestore) ---
+        async function saveData(force = false) {
+            if (!isAdmin && !force) return;
+            try {
+                const docRef = doc(db, "comandos", "main");
+                await setDoc(docRef, { data: JSON.stringify(commandData) });
+                showSaveToast();
+            } catch (e) {
+                console.error("Erro ao salvar no Firestore:", e);
+                alert("Não foi possível salvar os dados na nuvem.");
+            }
+        }
+
+        function listenToData() {
+            if (unsubscribeData) unsubscribeData();
+
+            const docRef = doc(db, "comandos", "main");
+            unsubscribeData = onSnapshot(docRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    commandData = JSON.parse(docSnap.data().data);
+                } else {
+                    commandData = isInitialized ? [] : initialDefaultData;
+                }
+                renderContent();
+            }, (error) => {
+                console.error("Erro ao ouvir dados:", error);
+                document.getElementById('loading-indicator').textContent = "Falha ao carregar dados.";
+            });
+        }
+        
+        // --- Funções de Renderização ---
+        function renderContent() {
+            const mainContent = document.getElementById('main-content');
+            const loadingIndicator = document.getElementById('loading-indicator');
+            mainContent.innerHTML = ''; 
+            
+            if (commandData.length === 0) {
+                 mainContent.appendChild(loadingIndicator);
+                 loadingIndicator.style.display = 'block';
+                 return;
+            }
+            
+            loadingIndicator.style.display = 'none';
+
+            commandData.forEach((category, categoryIndex) => {
+                const card = document.createElement('div');
+                card.className = 'category-card shadow-lg mb-8';
+
+                const header = document.createElement('div');
+                header.className = `p-4 flex justify-between items-center ${category.color || 'bg-gray-600'} text-white`;
+                const title = document.createElement('h2');
+                title.className = 'text-xl font-bold';
+                title.textContent = category.category;
+                header.appendChild(title);
+
+                if (isAdmin) {
+                    const deleteCatBtn = createButton(`Excluir categoria ${category.category}`, `<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg>`, () => deleteCategory(categoryIndex));
+                    deleteCatBtn.className = 'p-1 hover:bg-black/20 rounded-full';
+                    header.appendChild(deleteCatBtn);
+                }
+
+                const tableContainer = document.createElement('div');
+                tableContainer.className = 'table-container overflow-x-auto';
+                const table = document.createElement('table');
+                const thead = document.createElement('thead');
+                thead.innerHTML = `<tr><th class="vendor-cell">Alcatel</th><th class="vendor-cell">Cisco</th><th class="vendor-cell">Datacom</th><th class="vendor-cell">Huawei</th><th class="vendor-cell">Juniper</th>${isAdmin ? '<th class="actions-cell">Ações</th>' : ''}</tr>`;
+                const tbody = document.createElement('tbody');
+
+                category.commands.forEach((cmd, cmdIndex) => {
+                    tbody.appendChild(createCommandRow(cmd, categoryIndex, cmdIndex));
+                });
+                
+                table.append(thead, tbody);
+                tableContainer.appendChild(table);
+                card.append(header, tableContainer);
+                mainContent.appendChild(card);
+            });
+        }
+
+        function createCommandRow(cmd, categoryIndex, cmdIndex) {
+            const row = document.createElement('tr');
+            row.className = 'command-row';
+            row.title = cmd.task;
+            
+            const vendors = ['alcatel', 'cisco', 'datacom', 'huawei', 'juniper'];
+            vendors.forEach(vendor => {
+                const cell = row.insertCell();
+                cell.className = 'vendor-cell';
+                const pre = document.createElement('pre');
+                pre.textContent = cmd[vendor] || 'N/A';
+                pre.onclick = () => copyCommand(pre);
+                cell.appendChild(pre);
+            });
+
+            if (isAdmin) {
+                const actionsCell = row.insertCell();
+                actionsCell.className = 'actions-cell';
+                const actionsDiv = document.createElement('div');
+                actionsDiv.className = 'flex justify-center gap-2';
+                
+                const editBtn = createButton(`Editar comando`, `<svg class="h-5 w-5 text-blue-500 hover:text-blue-700" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg>`, () => openEditCommandModal(categoryIndex, cmdIndex));
+                const deleteBtn = createButton(`Excluir comando`, `<svg class="h-5 w-5 text-red-500 hover:text-red-700" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg>`, () => deleteCommand(categoryIndex, cmdIndex));
+
+                actionsDiv.append(editBtn, deleteBtn);
+                actionsCell.appendChild(actionsDiv);
+            }
+            return row;
+        }
+        
+        // --- Funções de Modal e Ações ---
+        window.openAddCategoryModal = () => {
+            if (!isAdmin) return;
+            const categoryName = prompt("Digite o nome da nova categoria:");
+            if (categoryName && categoryName.trim() !== '') {
+                commandData.push({ category: categoryName.trim(), color: "bg-gray-600", commands: [] });
+                saveData();
+            }
+        }
+
+        window.openAddCommandModal = () => {
+            if (!isAdmin) return;
+            setupModal('Adicionar Novo Comando', {}, (form) => {
+                const catIndex = form.elements.categorySelect.value;
+                const newCmd = getCommandFromForm(form);
+                commandData[catIndex].commands.push(newCmd);
+                saveData();
+                closeModal('commandModal');
+            });
+        }
+
+        window.openEditCommandModal = (catIndex, cmdIndex) => {
+            if (!isAdmin) return;
+            const cmd = commandData[catIndex].commands[cmdIndex];
+            setupModal('Editar Comando', { catIndex, cmdIndex, ...cmd }, (form) => {
+                const newCatIndex = form.elements.categorySelect.value;
+                const updatedCmd = getCommandFromForm(form);
+                
+                if (String(catIndex) !== newCatIndex) {
+                    commandData[catIndex].commands.splice(cmdIndex, 1);
+                    commandData[newCatIndex].commands.push(updatedCmd);
+                } else {
+                    commandData[catIndex].commands[cmdIndex] = updatedCmd;
+                }
+                saveData();
+                closeModal('commandModal');
+            });
+        }
+
+        function deleteCategory(catIndex) {
+            if (!isAdmin) return;
+            if (confirm(`Tem certeza que deseja excluir a categoria "${commandData[catIndex].category}"?`)) {
+                commandData.splice(catIndex, 1);
+                saveData();
+            }
+        }
+        
+        function deleteCommand(catIndex, cmdIndex) {
+            if (!isAdmin) return;
+            if (confirm(`Tem certeza que deseja excluir este comando?`)) {
+                commandData[catIndex].commands.splice(cmdIndex, 1);
+                saveData();
+            }
+        }
+        
+        // --- Funções Utilitárias ---
+        window.openModal = (modalId) => document.getElementById(modalId).classList.add('active');
+        window.closeModal = (modalId) => document.getElementById(modalId).classList.remove('active');
+        window.copyCommand = (element) => {
+            const textToCopy = element.textContent.replace('↳ ', '');
+            if (textToCopy === 'N/A') return;
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                const originalText = element.textContent;
+                element.textContent = 'Copiado!';
+                element.style.filter = 'brightness(1.5)';
+                setTimeout(() => {
+                    element.textContent = originalText;
+                    element.style.filter = '';
+                }, 1000);
+            });
+        };
+        window.filterContent = () => {
+            const filter = document.getElementById('searchInput').value.toUpperCase();
+            document.querySelectorAll('.category-card').forEach(card => {
+                let cardHasVisibleRow = false;
+                card.querySelectorAll('tbody tr').forEach(row => {
+                    if ((row.textContent + row.title).toUpperCase().includes(filter)) {
+                        row.style.display = '';
+                        cardHasVisibleRow = true;
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+                card.style.display = cardHasVisibleRow ? '' : 'none';
+            });
+        };
+        window.exportXLSX = () => {
+            if (!isAdmin) return;
+            const flatData = [];
+            commandData.forEach(cat => {
+                cat.commands.forEach(cmd => {
+                    flatData.push({
+                        Categoria: cat.category, Cor: cat.color, ID: cmd.id, Tarefa: cmd.task,
+                        Alcatel: cmd.alcatel, Cisco: cmd.cisco, Datacom: cmd.datacom,
+                        Huawei: cmd.huawei, Juniper: cmd.juniper
+                    });
+                });
+            });
+            const worksheet = XLSX.utils.json_to_sheet(flatData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Comandos");
+            XLSX.writeFile(workbook, "CentralDeComandos.xlsx");
+        };
+        window.importXLSX = (event) => {
+            if (!isAdmin) return;
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+                    const json = XLSX.utils.sheet_to_json(worksheet);
+
+                    const newCommandData = [];
+                    const categoryMap = new Map();
+
+                    json.forEach(row => {
+                        const catName = row.Categoria;
+                        if (!categoryMap.has(catName)) {
+                            categoryMap.set(catName, { category: catName, color: row.Cor || "bg-gray-600", commands: [] });
+                            newCommandData.push(categoryMap.get(catName));
+                        }
+                        categoryMap.get(catName).commands.push({
+                            id: String(row.ID || `cmd_${Date.now()}_${Math.random()}`), task: row.Tarefa,
+                            alcatel: row.Alcatel, cisco: row.Cisco, datacom: row.Datacom,
+                            huawei: row.Huawei, juniper: row.Juniper
+                        });
+                    });
+                    
+                    commandData = newCommandData;
+                    saveData();
+                    alert('Dados importados com sucesso!');
+                } catch (error) {
+                    console.error("Erro ao importar arquivo:", error);
+                    alert("Falha ao importar o arquivo. Verifique o formato das colunas.");
+                }
+            };
+            reader.readAsArrayBuffer(file);
+            event.target.value = '';
+        };
+        window.setTheme = (themeName) => {
+            document.documentElement.className = `theme-${themeName}`;
+            localStorage.setItem('selectedTheme', themeName);
+        };
+        function loadTheme() {
+            const savedTheme = localStorage.getItem('selectedTheme') || 'light';
+            setTheme(savedTheme);
+            document.getElementById('theme-selector').value = savedTheme;
+        }
+
+        // --- Inicialização ---
+        loadTheme();
+
+        // Funções auxiliares globais
+        function showSaveToast() {
+            const toast = document.getElementById('save-toast');
+            toast.classList.add('show');
+            setTimeout(() => { toast.classList.remove('show'); }, 1500);
+        }
+        function createButton(ariaLabel, innerHTML, onClick) {
+            const button = document.createElement('button');
+            button.setAttribute('aria-label', ariaLabel);
+            button.innerHTML = innerHTML;
+            button.onclick = onClick;
+            return button;
+        }
+        function setupModal(title, data, onSubmit) {
+            const modalTitle = document.getElementById('modalTitle');
+            const form = document.getElementById('commandForm');
+            modalTitle.textContent = title;
+            form.innerHTML = `
+                <input type="hidden" id="commandId" value="${data.id ?? ''}">
+                <div><label for="categorySelect" class="block font-semibold mb-1">Categoria</label><select id="categorySelect" class="w-full p-2 border rounded" style="background-color: var(--bg-primary); border-color: var(--border-color);"></select></div>
+                <div><label for="taskInput" class="block font-semibold mb-1">Tarefa (para tooltip)</label><input type="text" id="taskInput" value="${data.task ?? ''}" class="w-full p-2 border rounded" style="background-color: var(--bg-primary); border-color: var(--border-color);"></div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+                    ${['alcatel', 'cisco', 'datacom', 'huawei', 'juniper'].map(vendor => `<div><label class="block font-semibold mb-1">${vendor.charAt(0).toUpperCase() + vendor.slice(1)}</label><textarea id="${vendor}Input" class="w-full p-2 border rounded font-mono text-sm" rows="2" style="background-color: var(--bg-primary); border-color: var(--border-color);">${data[vendor] ?? ''}</textarea></div>`).join('')}
+                </div>
+                <div class="flex justify-end gap-4 pt-4">
+                    <button type="button" onclick="closeModal('commandModal')" class="px-4 py-2 bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded">Salvar</button>
+                </div>`;
+            const categorySelect = document.getElementById('categorySelect');
+            categorySelect.innerHTML = commandData.map((cat, index) => `<option value="${index}" ${index == data.catIndex ? 'selected' : ''}>${cat.category}</option>`).join('');
+            form.onsubmit = (e) => { e.preventDefault(); onSubmit(e.target); };
+            openModal('commandModal');
+        }
+        function getCommandFromForm(form) {
+            return {
+                id: form.elements.commandId.value || `cmd_${Date.now()}`,
+                task: form.elements.taskInput.value,
+                alcatel: form.elements.alcatelInput.value,
+                cisco: form.elements.ciscoInput.value,
+                datacom: form.elements.datacomInput.value,
+                huawei: form.elements.huaweiInput.value,
+                juniper: form.elements.juniperInput.value
+            };
+        }
+    </script>
+</body>
+</html>
