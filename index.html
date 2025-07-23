@@ -649,7 +649,25 @@
 
         // --- Inicialização ---
         loadTheme();
-
+		
+		// ADICIONE ESTA NOVA FUNÇÃO AQUI
+		window.setMyUIDAsAdmin = async function() {
+		    const user = auth.currentUser;
+			if (user) {
+				console.log("Usuário atual encontrado:", user.uid);
+				const configRef = doc(db, "config", "init");
+				try {
+					await setDoc(configRef, { adminUid: user.uid, initialized: true });
+					alert("SUCESSO! Você foi definido como o administrador. Por favor, atualize a página (F5) agora.");
+			        window.location.reload();
+				} catch (error) {
+					console.error("Erro ao salvar o UID de admin:", error);
+		            alert("Ocorreu um erro ao tentar se definir como admin. Verifique o console.");
+		        }
+			} else {
+		        alert("Nenhum usuário logado. Por favor, faça o login primeiro e depois execute esta função novamente no console.");
+		    }
+		}
         // Funções auxiliares globais
         function showSaveToast() {
             const toast = document.getElementById('save-toast');
