@@ -278,16 +278,28 @@
 
         async function updateUIForRole(user) {
             const adminControls = document.getElementById('admin-controls');
-            const authButton = document.getElementById('auth-button');
+			const authButton = document.getElementById('auth-button');
             
             if (user && isInitialized) {
                 const configRef = doc(db, "config", "init");
                 const docSnap = await getDoc(configRef);
+				
+				// --- NOSSOS ESPIÕES ESTÃO AQUI ---
+				console.log("--- INICIANDO VERIFICAÇÃO DE ADMIN ---");
+				console.log("Documento 'init' existe?", docSnap.exists());
+				if (docSnap.exists()) {
+				    console.log("UID do Admin salvo no Firestore:", docSnap.data().adminUid);
+				}
+				console.log("UID do Usuário que acabou de logar:", user.uid);
+				// --- FIM DOS ESPIÕES ---
+				
                 isAdmin = docSnap.exists() && docSnap.data().adminUid === user.uid;
             } else {
                 isAdmin = false;
             }
-
+			
+			console.log("Resultado da verificação: isAdmin =", isAdmin); // Adicionado para ver o resultado final
+			
             if (isAdmin) {
                 adminControls.style.display = 'flex';
                 authButton.textContent = 'Logout';
