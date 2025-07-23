@@ -118,9 +118,9 @@
 
     <script type="module">
         // Importações do Firebase
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
         // --- Configuração do Firebase ---
         const firebaseConfig = {
@@ -288,10 +288,13 @@
             if (isAdmin) {
                 adminControls.style.display = 'flex';
                 authButton.textContent = 'Logout';
+                document.querySelectorAll('.actions-cell, .actions-header').forEach(el => el.style.display = '');
             } else {
                 adminControls.style.display = 'none';
                 authButton.textContent = 'Login Admin';
+                document.querySelectorAll('.actions-cell, .actions-header').forEach(el => el.style.display = 'none');
             }
+            renderContent();
         }
 
         window.handleAuth = () => {
@@ -308,18 +311,17 @@
             e.preventDefault();
             const email = authForm.emailInput.value;
             const password = authForm.passwordInput.value;
-            const authError = document.getElementById('auth-error');
-            authError.classList.add('hidden');
+            const authErrorEl = document.getElementById('auth-error');
+            authErrorEl.classList.add('hidden');
 
             try {
                 if (isInitialized) {
                     await signInWithEmailAndPassword(auth, email, password);
-                    closeModal('authModal');
                 } else {
                     const confirmPassword = authForm.confirmPasswordInput.value;
                     if (password !== confirmPassword) {
-                        authError.textContent = "As senhas não coincidem.";
-                        authError.classList.remove('hidden');
+                        authErrorEl.textContent = "As senhas não coincidem.";
+                        authErrorEl.classList.remove('hidden');
                         return;
                     }
                     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -329,12 +331,25 @@
                     await setDoc(configRef, { adminUid: user.uid, initialized: true });
                     
                     commandData = initialDefaultData;
-                    await saveData(true);
+                    await saveData(true); 
                     isInitialized = true;
-                    closeModal('authModal');
                 }
+                closeModal('authModal');
             } catch (error) {
-                console.error("Erro de autenticação:", error.message);
+                console.error("Erro de autenticação:", error.code, error.message);
+                const errorCode = error.code;
+                let userMessage = "Ocorreu um erro desconhecido. Verifique o console para mais detalhes.";
+                
+                if (errorCode === 'auth/wrong-password' || errorCode === 'auth/invalid-credential' || errorCode === 'auth/user-not-found') {
+                    userMessage = "E-mail ou senha incorreta. Verifique os dados e tente novamente.";
+                } else if (errorCode === 'auth/invalid-email') {
+                    userMessage = "O formato do e-mail é inválido.";
+                } else if (errorCode === 'auth/too-many-requests') {
+                    userMessage = "Acesso bloqueado devido a muitas tentativas. Tente novamente mais tarde.";
+                }
+
+                authErrorEl.textContent = userMessage;
+                authErrorEl.classList.remove('hidden');
             }
         });
 
@@ -361,7 +376,7 @@
                 } else {
                     commandData = isInitialized ? [] : initialDefaultData;
                 }
-                renderContent();
+                updateUIForRole(auth.currentUser); 
             }, (error) => {
                 console.error("Erro ao ouvir dados:", error);
                 document.getElementById('loading-indicator').textContent = "Falha ao carregar dados.";
@@ -374,10 +389,18 @@
             const loadingIndicator = document.getElementById('loading-indicator');
             mainContent.innerHTML = ''; 
             
-            if (commandData.length === 0) {
+            if (!isInitialized && commandData.length === 0){
+                mainContent.appendChild(loadingIndicator);
+                loadingIndicator.style.display = 'block';
+                loadingIndicator.textContent = "Nenhum dado encontrado. Faça login como admin para iniciar.";
+                return;
+            }
+            
+            if (isInitialized && commandData.length === 0){
                  mainContent.appendChild(loadingIndicator);
-                 loadingIndicator.style.display = 'block';
-                 return;
+                loadingIndicator.style.display = 'block';
+                loadingIndicator.textContent = "Nenhum dado encontrado. Adicione categorias e comandos.";
+                return;
             }
             
             loadingIndicator.style.display = 'none';
@@ -403,10 +426,10 @@
                 tableContainer.className = 'table-container overflow-x-auto';
                 const table = document.createElement('table');
                 const thead = document.createElement('thead');
-                thead.innerHTML = `<tr><th class="vendor-cell">Alcatel</th><th class="vendor-cell">Cisco</th><th class="vendor-cell">Datacom</th><th class="vendor-cell">Huawei</th><th class="vendor-cell">Juniper</th>${isAdmin ? '<th class="actions-cell">Ações</th>' : ''}</tr>`;
+                thead.innerHTML = `<tr><th class="vendor-cell">Alcatel</th><th class="vendor-cell">Cisco</th><th class="vendor-cell">Datacom</th><th class="vendor-cell">Huawei</th><th class="vendor-cell">Juniper</th><th class="actions-cell actions-header" style="display: ${isAdmin ? '' : 'none'}">Ações</th></tr>`;
                 const tbody = document.createElement('tbody');
 
-                category.commands.forEach((cmd, cmdIndex) => {
+                (category.commands || []).forEach((cmd, cmdIndex) => {
                     tbody.appendChild(createCommandRow(cmd, categoryIndex, cmdIndex));
                 });
                 
@@ -432,9 +455,10 @@
                 cell.appendChild(pre);
             });
 
+            const actionsCell = row.insertCell();
+            actionsCell.className = 'actions-cell';
+            actionsCell.style.display = isAdmin ? '' : 'none';
             if (isAdmin) {
-                const actionsCell = row.insertCell();
-                actionsCell.className = 'actions-cell';
                 const actionsDiv = document.createElement('div');
                 actionsDiv.className = 'flex justify-center gap-2';
                 
@@ -462,6 +486,9 @@
             setupModal('Adicionar Novo Comando', {}, (form) => {
                 const catIndex = form.elements.categorySelect.value;
                 const newCmd = getCommandFromForm(form);
+                if (!commandData[catIndex].commands) {
+                    commandData[catIndex].commands = [];
+                }
                 commandData[catIndex].commands.push(newCmd);
                 saveData();
                 closeModal('commandModal');
@@ -477,6 +504,9 @@
                 
                 if (String(catIndex) !== newCatIndex) {
                     commandData[catIndex].commands.splice(cmdIndex, 1);
+                    if (!commandData[newCatIndex].commands) {
+                         commandData[newCatIndex].commands = [];
+                    }
                     commandData[newCatIndex].commands.push(updatedCmd);
                 } else {
                     commandData[catIndex].commands[cmdIndex] = updatedCmd;
@@ -537,7 +567,7 @@
             if (!isAdmin) return;
             const flatData = [];
             commandData.forEach(cat => {
-                cat.commands.forEach(cmd => {
+                (cat.commands || []).forEach(cmd => {
                     flatData.push({
                         Categoria: cat.category, Cor: cat.color, ID: cmd.id, Tarefa: cmd.task,
                         Alcatel: cmd.alcatel, Cisco: cmd.cisco, Datacom: cmd.datacom,
