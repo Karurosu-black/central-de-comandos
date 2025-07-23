@@ -246,7 +246,10 @@
                 listenToData();
             } catch (error) {
                 console.error("Falha ao verificar a inicialização do Firebase:", error);
-                document.getElementById('loading-indicator').textContent = "Erro de conexão com o servidor. Tente recarregar a página.";
+                const loadingIndicator = document.getElementById('loading-indicator');
+                if (loadingIndicator) {
+                   loadingIndicator.textContent = "Erro de conexão com o servidor. Tente recarregar a página.";
+                }
             }
         });
 
@@ -288,11 +291,9 @@
             if (isAdmin) {
                 adminControls.style.display = 'flex';
                 authButton.textContent = 'Logout';
-                document.querySelectorAll('.actions-cell, .actions-header').forEach(el => el.style.display = '');
             } else {
                 adminControls.style.display = 'none';
                 authButton.textContent = 'Login Admin';
-                document.querySelectorAll('.actions-cell, .actions-header').forEach(el => el.style.display = 'none');
             }
             renderContent();
         }
@@ -376,10 +377,13 @@
                 } else {
                     commandData = isInitialized ? [] : initialDefaultData;
                 }
-                updateUIForRole(auth.currentUser); 
+                renderContent();
             }, (error) => {
                 console.error("Erro ao ouvir dados:", error);
-                document.getElementById('loading-indicator').textContent = "Falha ao carregar dados.";
+                const loadingIndicator = document.getElementById('loading-indicator');
+                if (loadingIndicator) {
+                   loadingIndicator.textContent = "Falha ao carregar dados.";
+                }
             });
         }
         
@@ -387,23 +391,24 @@
         function renderContent() {
             const mainContent = document.getElementById('main-content');
             const loadingIndicator = document.getElementById('loading-indicator');
-            mainContent.innerHTML = ''; 
             
-            if (!isInitialized && commandData.length === 0){
-                mainContent.appendChild(loadingIndicator);
-                loadingIndicator.style.display = 'block';
-                loadingIndicator.textContent = "Nenhum dado encontrado. Faça login como admin para iniciar.";
+            // Limpa apenas os cards, preservando o loading-indicator se ele estiver fora ou for recriado
+            mainContent.innerHTML = '';
+            
+            if (commandData.length === 0) {
+                if (loadingIndicator) {
+                    loadingIndicator.style.display = 'block';
+                    loadingIndicator.textContent = isAdmin 
+                        ? "Nenhum dado encontrado. Adicione categorias e comandos." 
+                        : (isInitialized ? "Carregando comandos..." : "Conectando ao servidor...");
+                    mainContent.appendChild(loadingIndicator);
+                }
                 return;
             }
             
-            if (isInitialized && commandData.length === 0){
-                 mainContent.appendChild(loadingIndicator);
-                loadingIndicator.style.display = 'block';
-                loadingIndicator.textContent = "Nenhum dado encontrado. Adicione categorias e comandos.";
-                return;
+            if (loadingIndicator) {
+                loadingIndicator.style.display = 'none';
             }
-            
-            loadingIndicator.style.display = 'none';
 
             commandData.forEach((category, categoryIndex) => {
                 const card = document.createElement('div');
